@@ -17,6 +17,26 @@ def get_closest_word(word):
     "This function will get string similarities for each ocr'd word against all possible Codenames words and convert to the best match word if similarity != 1"
     pass
 
+def calc_avg_x(coords):
+    avg_x = np.average([coords[0],coords[2]])
+    return avg_x
+
+def calc_avg_y(coords):
+    avg_y = np.average([coords[1],coords[3]])
+    return avg_y
+
+def calc_word_xy(coords):
+    "This function will analyze each set of coordinates for all 25 words and assign the correct word number to each word. Input is the words dataframe."
+    coords_list = coords
+    x = [calc_avg_x(coords_list[i]) for i in range(len(word_list))]
+    y = [calc_avg_y(coords_list[i]) for i in range(len(word_list))]
+    return x, y
+
+def assign_word_num(col,row):
+    "Uses rules for col row combinations to determine word number."
+    word_num = [int(num_map['WORD_NUM'][num_map['COL'] == col[i]][num_map['ROW'] == row[i]]) for i in range(len(word_list))]
+    return word_num
+
 def hocr_to_lines(hocr_path):
     lines = []
     soup = BeautifulSoup(hocr_path)
@@ -34,6 +54,7 @@ def hocr_to_lines(hocr_path):
     return lines
 
 if __name__ == '__main__':
+    num_map = pd.read_csv('..\col_row_to_word_num.csv')
     hocr_path = '..\words.html'
     lines = hocr_to_lines(open(hocr_path).read())
 
@@ -47,9 +68,13 @@ if __name__ == '__main__':
             line['text'] = str(line['text']).upper()
             output += line['text']
             word_list.append(line['text'])
-            coords.append([line['x1'],line['x2'],line['y1'],line['y2']])
+            coords.append([line['x1'],line['y1'],line['x2'],line['y2']])
 
-    words_df = pd.DataFrame({'Word':word_list, 'Coords':coords},columns=['Word','Coords','Team','Word_Num'])
+    x, y = calc_word_xy(coords)
+    col = list(pd.cut(x,5).codes)
+    row = list(pd.cut(y,5).codes)
+    word_num = assign_word_num(col,row)
+    words_df = pd.DataFrame({'Word':word_list, 'Coords':coords, 'X':x, 'Y':y, 'Column':col, 'Row':row, 'Word_Num':word_num},columns=['Word','Coords','X','Y','Column','Row','Team','Word_Num'])
 
 
 
