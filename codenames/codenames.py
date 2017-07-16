@@ -26,7 +26,7 @@ def calc_avg_y(coords):
     return avg_y
 
 def calc_word_xy(coords):
-    "This function will analyze each set of coordinates for all 25 words and assign the correct word number to each word. Input is the words dataframe."
+    "Calculates average x and y for each word"
     coords_list = coords
     x = [calc_avg_x(coords_list[i]) for i in range(len(word_list))]
     y = [calc_avg_y(coords_list[i]) for i in range(len(word_list))]
@@ -71,8 +71,8 @@ if __name__ == '__main__':
             coords.append([line['x1'],line['y1'],line['x2'],line['y2']])
 
     x, y = calc_word_xy(coords)
-    col = list(pd.cut(x,5).codes)
-    row = list(pd.cut(y,5).codes)
+    col = list(pd.cut(x,5).codes)       #Uses avg x coords to put each word into one of 5 column categories
+    row = list(pd.cut(y,5).codes)       #Uses avg y coords to put each word into one of 5 row categories
     word_num = assign_word_num(col,row)
     words_df = pd.DataFrame({'Word':word_list, 'Coords':coords, 'X':x, 'Y':y, 'Column':col, 'Row':row, 'Word_Num':word_num},columns=['Word','Coords','X','Y','Column','Row','Team','Word_Num'])
 
