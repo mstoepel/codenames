@@ -11,12 +11,15 @@ import scipy.ndimage as sp
 import scipy.misc
 import cv2
 import pandas as pd
+from PIL import Image, ImageFilter
 
 def find_subimages(primary, subimage, confidence=0.80):
-  primary_edges = cv2.Canny(primary, 32, 128, apertureSize=3)
-  subimage_edges = cv2.Canny(subimage, 32, 128, apertureSize=3)
+  primary_edges = cv2.Canny(primary, 250, 300, apertureSize=3)  #32, 128
+  subimage_edges = cv2.Canny(subimage, 250, 300, apertureSize=3)  #32, 128
+  cv2.imwrite('primary_edges.tmp.png',primary_edges)
+  cv2.imwrite('subimage_edges.tmp.png',subimage_edges)
 
-  result = cv2.matchTemplate(primary_edges, subimage_edges, cv2.TM_CCOEFF_NORMED)
+  result = cv2.matchTemplate(primary_edges, subimage_edges, cv2.TM_CCOEFF_NORMED) #TM_CCORR_NORMED also works well
   (y, x) = np.unravel_index(result.argmax(),result.shape)
 
   result[result>=confidence]=1.0
@@ -70,27 +73,41 @@ def  find_subimages_from_files(primary_image_filename, subimage_filename, confid
   (running separately on each channel and combining the cross correlations?) is probably
   necessary.  
   '''
-  primary = cv2.imread(primary_image_filename, cv2.IMREAD_GRAYSCALE)
-  subimage = cv2.imread(subimage_filename, cv2.IMREAD_GRAYSCALE)
+  primary = cv2.imread(primary_image_filename, cv2.IMREAD_COLOR)
+  # primary = cv2.GaussianBlur(primary,(5,5),0)
+
+  img_bw = 255 * (cv2.cvtColor(primary, cv2.COLOR_BGR2GRAY) > 5).astype('uint8')
+
+  se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+  se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+  mask = cv2.morphologyEx(img_bw, cv2.MORPH_CLOSE, se1)
+  mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, se2)
+
+  mask = np.dstack([mask, mask, mask]) / 255
+  primary = img * mask
+
+  subimage = cv2.imread(subimage_filename, cv2.IMREAD_COLOR)
+  cv2.imwrite('primary_read.png',primary)
+  cv2.imwrite('subimage_read.png',subimage)
   return find_subimages(primary, subimage, confidence)
 
 
 def main_red():
-  primary_image_filename = 'out_test.png'
-  subimage_filename = 'red.png'
+  primary_image_filename = 'red_only.png'
+  subimage_filename = 'red2.png'
   outfile = 'out_red.png'
 
-  image_locations = find_subimages_from_files(primary_image_filename, subimage_filename,confidence=0.2,)
+  image_locations = find_subimages_from_files(primary_image_filename, subimage_filename,confidence=0.1805,)
 
   save_output(primary_image_filename, outfile, image_locations)
   return image_locations
 
 def main_blue():
-  primary_image_filename = 'out_test.png'
+  primary_image_filename = 'blue_only.png'
   subimage_filename = 'blue.png'
   outfile = 'out_blue.png'
 
-  image_locations = find_subimages_from_files(primary_image_filename, subimage_filename, confidence=0.11, )
+  image_locations = find_subimages_from_files(primary_image_filename, subimage_filename, confidence=0.22, )
 
   save_output(primary_image_filename, outfile, image_locations)
   return image_locations
@@ -118,18 +135,33 @@ def assign_word_num(col, row):
 
 if __name__ == '__main__':
 
-  img = cv2.imread('Images\image2.JPG')
+  img = cv2.imread('Images\image3.JPG')
   im_color = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-  lower = np.array([50, 50, 150]) # 50 50 150
-  upper = np.array([255, 255, 255]) #250 250 250
+  # lower = np.array([50, 50, 150]) # 50 50 150
+  # upper = np.array([255, 255, 255]) #250 250 250
 
-  mask3 = cv2.inRange(im_color, lower, upper)
-  res3 = cv2.bitwise_and(img, img, mask=mask3)
-  cv2.imwrite('out_test.png', res3)
+  lower_red = np.array([175, 150, 150])
+  upper_red = np.array([255, 255, 255])
 
-  image_locations_red = main_red()
+  lower_blue = np.array([75, 50, 50])
+  upper_blue = np.array([130, 255, 255])
+
+  # mask3 = cv2.inRange(im_color, lower, upper)
+  # res3 = cv2.bitwise_and(img, img, mask=mask3)
+  # cv2.imwrite('out_test.png', res3)
+
+  mask_red = cv2.inRange(im_color, lower_red, upper_red)
+  res_red = cv2.bitwise_and(img, img, mask=mask_red)
+  cv2.imwrite('red_only.png', res_red)
+
+  mask_blue = cv2.inRange(im_color, lower_blue, upper_blue)
+  res_blue = cv2.bitwise_and(img, img, mask=mask_blue)
+  cv2.imwrite('blue_only.png', res_blue)
+
+  # image_locations_red = main_red()
   image_locations_blue = main_blue()
+  image_locations_red = main_red()
 
   red = [[int(image_locations_red[i][1].start), int(image_locations_red[i][0].start), int(image_locations_red[i][1].stop), int(image_locations_red[i][0].stop)] for i in range(len(image_locations_red))]
   blue = [[int(image_locations_blue[i][1].start), int(image_locations_blue[i][0].start), int(image_locations_blue[i][1].stop), int(image_locations_blue[i][0].stop)] for i in range(len(image_locations_blue))]
@@ -142,6 +174,13 @@ if __name__ == '__main__':
 
   blue_col = list(pd.cut(blue_x, 5).codes)  # Uses avg x coords to put each word into one of 5 column categories
   blue_row = list(pd.cut(blue_y, 5).codes)  # Uses avg y coords to put each word into one of 5 row categories
+
+  # PROBLEM - BECAUSE DOING CUTS ONLY ON BLUE, OR RED, IF A COLOR DOESN'T SPAN ALL COLUMNS, THERE WILL BE ISSUES WITH COLUMN ASSIGNMENT.
+  # NEED TO SOMEHOW USE FULL COLOR GRID FOR CUTS, OR GIVE RANGE FOR CUT. like max value for either one
+
+  # from scipy.stats import binned_statistic
+  # blue_col = list(binned_statistic(blue_x, blue_x, bins=5, range=(min(red_x),max(red_x))))
+  # blue_row = list(binned_statistic(blue_y, blue_y, bins=5, range=(min(red_y),max(red_y))))
 
   num_map = pd.read_csv('col_row_to_word_num.csv')
 
