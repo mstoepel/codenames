@@ -87,10 +87,21 @@ def  find_subimages_from_files(primary_image_filename, subimage_filename, confid
   primary = img * mask
 
   subimage = cv2.imread(subimage_filename, cv2.IMREAD_COLOR)
+
+  img_bw = 255 * (cv2.cvtColor(subimage, cv2.COLOR_BGR2GRAY) > 5).astype('uint8')
+
+  se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+  se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+  mask = cv2.morphologyEx(img_bw, cv2.MORPH_CLOSE, se1)
+  mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, se2)
+
+  mask = np.dstack([mask, mask, mask]) / 255
+  img2 = cv2.imread(subimage_filename)
+  subimage = img2 * mask
+
   cv2.imwrite('primary_read.png',primary)
   cv2.imwrite('subimage_read.png',subimage)
   return find_subimages(primary, subimage, confidence)
-
 
 def main_red():
   primary_image_filename = 'red_only.png'
@@ -135,11 +146,11 @@ def assign_word_num(col, row):
 
 if __name__ == '__main__':
 
-  img = cv2.imread('Images\image3.JPG')
+  img = cv2.imread('Images\image2.JPG')
   im_color = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-  # lower = np.array([50, 50, 150]) # 50 50 150
-  # upper = np.array([255, 255, 255]) #250 250 250
+  lower = np.array([50, 50, 150]) # 50 50 150
+  upper = np.array([255, 255, 255]) #250 250 250
 
   lower_red = np.array([175, 150, 150])
   upper_red = np.array([255, 255, 255])
@@ -159,7 +170,6 @@ if __name__ == '__main__':
   res_blue = cv2.bitwise_and(img, img, mask=mask_blue)
   cv2.imwrite('blue_only.png', res_blue)
 
-  # image_locations_red = main_red()
   image_locations_blue = main_blue()
   image_locations_red = main_red()
 
